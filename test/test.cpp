@@ -148,10 +148,11 @@ TEST_CASE("testing the HuffTree class") {
 
   SUBCASE("testing HuffTree::operator=") {
     std::map<char, uint32_t> amount_table = { {'a', 1}, {'b', 2}, {'c', 4} };
-    huff::HuffTree huff_tree(amount_table);
     huff::HuffTree huff_tree_copy;
-    huff_tree_copy = huff_tree;
-    huff_tree.~HuffTree();
+    {
+      huff::HuffTree huff_tree(amount_table);
+      huff_tree_copy = huff_tree;
+    }
     REQUIRE_NOTHROW(huff_tree_copy.root());
     REQUIRE_FALSE(huff_tree_copy.root()->left() == nullptr);
     REQUIRE_FALSE(huff_tree_copy.root()->left()->left() == nullptr);
@@ -209,8 +210,9 @@ TEST_CASE("testing the HuffTree class") {
 
 
 TEST_CASE("testing HuffmanArchiver class") {
+  huff::HuffmanArchiver huffman_archiver;
+
   SUBCASE("testing encode_buildHuffTree method") {
-    huff::HuffmanArchiver huffman_archiver;
     std::istringstream encode_str("cbcacbc", std::ios::binary);
     REQUIRE_NOTHROW(huffman_archiver.encode_buildHuffTree(encode_str));
     REQUIRE_NOTHROW(huffman_archiver.tree().root());
@@ -231,7 +233,6 @@ TEST_CASE("testing HuffmanArchiver class") {
   }
 
   SUBCASE("testing decode_buildHuffTree method") {
-    huff::HuffmanArchiver huffman_archiver;
     std::string test_str{2, 'a', 1, 0, 0, 0,
                             'b', 2, 0, 0, 0,
                             'c', 4, 0, 0, 0};
@@ -256,8 +257,7 @@ TEST_CASE("testing HuffmanArchiver class") {
   }
 
   SUBCASE("testing decode_buildHuffTree method on an empty file") {
-    huff::HuffmanArchiver huffman_archiver;
-    std::string test_str{};
+    std::string test_str = {};
     std::istringstream decode_str(test_str, std::ios::binary);
     REQUIRE_NOTHROW(huffman_archiver.decode_buildHuffTree(decode_str));
     CHECK_THROWS_WITH_AS(huffman_archiver.tree().root(),
@@ -265,87 +265,98 @@ TEST_CASE("testing HuffmanArchiver class") {
   }
 
   SUBCASE("testing decode_buildHuffTree method on a corrupted file") {
-    huff::HuffmanArchiver huffman_archiver;
-    std::string test_str{2, 'a', 1, 0, 0, 0, 'b', '~', '~'};
+    std::string test_str = {2, 'a', 1, 0, 0, 0, 'b', '~', '~'};
     std::istringstream decode_str(test_str, std::ios::binary);
     CHECK_THROWS_WITH_AS(huffman_archiver.decode_buildHuffTree(decode_str),
                          "File format error!", std::runtime_error);
   }
 
   SUBCASE("testing encode method") {
-    huff::HuffmanArchiver huffman_archiver;
     std::ostringstream out(std::ios::binary);
+    std::string test_str;
+    std::string compare_str;
+
     SUBCASE("state situation") {
-      std::string test_str = "cbcacbc";
-      std::istringstream encode_str(test_str, std::ios::binary);
-      REQUIRE_NOTHROW(huffman_archiver.encode(encode_str, out));
-      std::string compare_str = {2, 'a', 1, 0, 0, 0,
-                                    'b', 2, 0, 0, 0,
-                                    'c', 4, 0, 0, 0, 2,
-                                 static_cast<char>(0b01001101),
-                                 static_cast<char>(0b00000011)};
-      CHECK_EQ(out.str(), compare_str);
+      test_str = "cbcacbc";
+      compare_str = {2, 'a', 1, 0, 0, 0,
+                        'b', 2, 0, 0, 0,
+                        'c', 4, 0, 0, 0, 2,
+                     static_cast<char>(0b01001101),
+                     static_cast<char>(0b00000011)};
     }
 
     SUBCASE("file which consists of one repeating character") {
-      std::string test_str = "aaaaaaaaaa";
-      std::istringstream encode_str(test_str, std::ios::binary);
-      REQUIRE_NOTHROW(huffman_archiver.encode(encode_str, out));
-      std::string compare_str = {0, 'a', 0xA, 0, 0, 0};
-      CHECK_EQ(out.str(), compare_str);
+      test_str = "aaaaaaaaaa";
+      compare_str = {0, 'a', 0xA, 0, 0, 0};
     }
 
     SUBCASE("file which consists of one repeating character") {
-      std::string test_str = {};
-      std::istringstream encode_str(test_str, std::ios::binary);
-      REQUIRE_NOTHROW(huffman_archiver.encode(encode_str, out));
-      std::string compare_str = {};
-      CHECK_EQ(out.str(), compare_str);
+      test_str = {};
+      compare_str = {};
     }
+
+    SUBCASE("file which size (in bits) is divisible by 8") {
+      test_str = "aaaabbbb";
+      compare_str = {1, 'a', 4, 0, 0, 0,
+                        'b', 4, 0, 0, 0, 0,
+                     static_cast<char>(0b11110000)};
+    }
+
+    std::istringstream encode_str(test_str, std::ios::binary);
+    REQUIRE_NOTHROW(huffman_archiver.encode(encode_str, out));
+    CHECK_EQ(out.str(), compare_str);
   }
 
   SUBCASE("testing decode method") {
-    huff::HuffmanArchiver huffman_archiver;
     std::ostringstream out(std::ios::binary);
+    std::string test_str;
+    std::string compare_str;
+
     SUBCASE("state situation") {
-      std::string test_str = {2, 'a', 1, 0, 0, 0,
-                                 'b', 2, 0, 0, 0,
-                                 'c', 4, 0, 0, 0, 2,
-                              static_cast<char>(0b01001101),
-                              static_cast<char>(0b00000011)};
-      std::istringstream decode_str(test_str, std::ios::binary);
-      REQUIRE_NOTHROW(huffman_archiver.decode(decode_str, out));
-      std::string compare_str = "cbcacbc";
-      CHECK_EQ(out.str(), compare_str);
+      test_str = {2, 'a', 1, 0, 0, 0,
+                     'b', 2, 0, 0, 0,
+                     'c', 4, 0, 0, 0, 2,
+                     static_cast<char>(0b01001101),
+                     static_cast<char>(0b00000011)};
+      compare_str = "cbcacbc";
     }
 
     SUBCASE("file which consists of one repeating character") {
-      std::string test_str = {0, 'a', 10, 0, 0, 0};
-      std::istringstream decode_str(test_str, std::ios::binary);
-      REQUIRE_NOTHROW(huffman_archiver.decode(decode_str, out));
-      std::string compare_str = "aaaaaaaaaa";
-      CHECK_EQ(out.str(), compare_str);
+      test_str = {0, 'a', 10, 0, 0, 0};
+      compare_str = "aaaaaaaaaa";
     }
 
     SUBCASE("empty file") {
-      std::string test_str = {};
-      std::istringstream decode_str(test_str, std::ios::binary);
-      REQUIRE_NOTHROW(huffman_archiver.decode(decode_str, out));
-      std::string compare_str = {};
-      CHECK_EQ(out.str(), compare_str);
+      test_str = {};
+      compare_str = {};
     }
+
+    std::istringstream decode_str(test_str, std::ios::binary);
+    REQUIRE_NOTHROW(huffman_archiver.decode(decode_str, out));
+    CHECK_EQ(out.str(), compare_str);
   }
 
   SUBCASE("testing encode-decode together") {
-    huff::HuffmanArchiver huffman_archiver;
-    std::string test_str = "abcd";
-    std::istringstream encode_str(test_str, std::ios::binary);
-    std::ostringstream decode_str(std::ios::binary);
-    std::ostringstream check_str(std::ios::binary);
-    REQUIRE_NOTHROW(huffman_archiver.encode(encode_str, decode_str));
-    for (auto &e : decode_str.str()) {
-      std::cout << int(e) << ' ';
+    std::string test_str;
+    SUBCASE("state situation") {
+      test_str = "How great that everything runs smoothly!";
     }
-    std::cout << std::endl;
+    SUBCASE("file which consists of one repeating character") {
+      test_str = "aaaaaaaaaa";
+    }
+    SUBCASE("empty file") {
+      test_str = {};
+    }
+    SUBCASE("possible last-byte-missing error") {
+      test_str = "aaaabbbb";
+    }
+    std::istringstream encode_str(test_str, std::ios::binary);
+    std::ostringstream encoded_str(std::ios::binary);
+    std::istringstream decode_str(std::ios::binary);
+    std::ostringstream check_str(std::ios::binary);
+    REQUIRE_NOTHROW(huffman_archiver.encode(encode_str, encoded_str));
+    decode_str.str(encoded_str.str());
+    REQUIRE_NOTHROW(huffman_archiver.decode(decode_str, check_str));
+    CHECK_EQ(test_str, check_str.str());
   }
 }

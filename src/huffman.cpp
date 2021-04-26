@@ -1,7 +1,6 @@
 #include "huffman.h"
 
 #include <algorithm>
-#include <stdexcept>
 #include <iostream>
 #include <cstring>
 
@@ -39,6 +38,12 @@ bool TreeNode::operator==(const TreeNode &other) const {
 }
 
 bool TreeNode::operator<(const TreeNode &other) const {
+  if (other.used()) {
+    return true;
+  }
+  if (used()) {
+    return false;
+  }
   return std::make_pair(amount(), symbol()) <
          std::make_pair(other.amount(), other.symbol());
 }
@@ -159,14 +164,9 @@ HuffTree &HuffTree::operator=(const HuffTree &other) {
   return *this;
 }
 
-HuffTree::~HuffTree() {
-  tree_.clear();
-  char_buffer_map_.clear();
-}
-
 const TreeNode *HuffTree::root() const {
   emptiness_check();
-  return &*tree_.rbegin();
+  return &tree_.back();
 }
 
 uint8_t HuffTree::leaves_count() const {
@@ -176,24 +176,16 @@ uint8_t HuffTree::leaves_count() const {
 
 void HuffTree::build_tree(std::map<char, uint32_t> &amount_table) {
   tree_.clear();
+  tree_.reserve(2 * amount_table.size());
   for (auto &elem : amount_table) {
-    tree_.insert(TreeNode(elem));
+    tree_.emplace_back(elem);
   }
   int loop_count = static_cast<int>(tree_.size()) - 1;
   for (int i = 0; i < loop_count; ++i) {
-    TreeNode *first_max = nullptr;
-    TreeNode *second_max = nullptr;
-    for (auto &node : tree_) {
-      if (!node.used()) {
-        if (!first_max) {
-          first_max = const_cast<TreeNode *>(&node);
-        } else {
-          second_max = const_cast<TreeNode *>(&node);
-          break;
-        }
-      }
-    }
-    tree_.insert(TreeNode(first_max, second_max));
+    TreeNode *first_min = &*std::min_element(tree_.begin(), tree_.end());
+    first_min->used(true);
+    TreeNode *second_min = &*std::min_element(tree_.begin(), tree_.end());
+    tree_.emplace_back(first_min, second_min);
   }
 }
 
@@ -288,6 +280,8 @@ long HuffmanArchiver::encode(std::istream &in,
   }
   bit_writer.flush();
 
+  in.clear();
+
   return tree_info_size;
 }
 
@@ -304,6 +298,7 @@ long HuffmanArchiver::decode(std::istream &in,
       return in.tellg();
     }
   } catch (const std::logic_error &e) {
+    in.clear();
     return 0;
   }
 
@@ -318,7 +313,7 @@ long HuffmanArchiver::decode(std::istream &in,
 
   const TreeNode *cur_node = tree().root();
   uint8_t cur_byte = 0;
-  for (int i = 0; i < file_length - 1; ++i) {
+  for (int i = 0; i < file_length - 1 + (last_byte_size == 0); ++i) {
     in.read(reinterpret_cast<char *>(&cur_byte), sizeof cur_byte);
     cur_node = process_byte(cur_node, cur_byte, 8, out);
   }

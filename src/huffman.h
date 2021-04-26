@@ -1,9 +1,9 @@
 #ifndef HW_02_HUFFMAN_H
 #define HW_02_HUFFMAN_H
 
-#include <set>
 #include <map>
 #include <string>
+#include <vector>
 
 namespace huff {
 
@@ -73,7 +73,7 @@ class HuffTree {
   explicit HuffTree(std::map<char, uint32_t> &amount_table);
   HuffTree(const HuffTree &other);
   HuffTree &operator=(const HuffTree &other);
-  ~HuffTree();
+  ~HuffTree() = default;
 
   const TreeNode *root() const;
   uint8_t leaves_count() const;
@@ -92,7 +92,7 @@ class HuffTree {
                          const TreeNode *node, BitBuffer &bit_buffer) const;
   void emptiness_check() const;
 
-  std::set<TreeNode> tree_;
+  std::vector<TreeNode> tree_;
   std::map<char, BitBuffer> char_buffer_map_;
 };
 
